@@ -1,0 +1,13 @@
+@echo off
+echo ========================================================
+echo Iniciando o sistema de monitoramento de processos...
+echo ========================================================
+
+echo 1. Iniciando o Banco de Dados e a API (Backend)...
+start "API Monitor TJRJ" cmd /c "venv\Scripts\python.exe -m uvicorn api:app --host 0.0.0.0 --port 8000"
+
+echo 2. Aguardando a API subir...
+timeout /t 5 /nobreak > nul
+
+echo 3. Iniciando a Interface do Usuario (Streamlit)...
+venv\Scripts\python.exe -m streamlit run app.py
