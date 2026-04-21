@@ -14,6 +14,7 @@ database.init_db()
 class ProcessoRequest(BaseModel):
     numero_processo: str
     telefone: str
+    oab: str | None = None
 
 def verificar_movimentacoes():
     print("Iniciando verificação de movimentações...")
@@ -22,13 +23,18 @@ def verificar_movimentacoes():
         numero = p["numero_processo"]
         ultima_db = p["ultima_movimentacao"]
         
-        nova_movimentacao = consultar_processo(numero)
+        info = consultar_processo(numero)
         
-        if nova_movimentacao and nova_movimentacao != ultima_db:
+        if info and info["movimentacao"] != ultima_db:
             print(f"Nova movimentação encontrada para o processo {numero}")
-            database.atualizar_movimentacao(p["id"], nova_movimentacao)
+            database.atualizar_processo_full(
+                p["id"], 
+                info["movimentacao"], 
+                info["data"], 
+                info["vara"]
+            )
             
-            mensagem = f"Nova movimentação no processo {numero}:\n\n{nova_movimentacao}"
+            mensagem = f"Nova movimentação no processo {numero}:\n\n{info['movimentacao']}"
             enviar_whatsapp(p["telefone_cliente"], mensagem)
 
 @asynccontextmanager
@@ -43,15 +49,20 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/processos")
 def criar_processo(data: ProcessoRequest):
-    database.add_processo(data.numero_processo, data.telefone)
+    database.add_processo(data.numero_processo, data.telefone, data.oab)
     
     # Faz uma verificação inicial logo ao cadastrar
-    ultima = consultar_processo(data.numero_processo)
-    if ultima:
+    info = consultar_processo(data.numero_processo)
+    if info:
         processos = database.listar_processos()
         for p in processos:
             if p["numero_processo"] == data.numero_processo and p["telefone_cliente"] == data.telefone:
-                database.atualizar_movimentacao(p["id"], ultima)
+                database.atualizar_processo_full(
+                    p["id"], 
+                    info["movimentacao"], 
+                    info["data"], 
+                    info["vara"]
+                )
                 break
                 
     return {"status": "ok", "mensagem": "Processo cadastrado com sucesso!"}
