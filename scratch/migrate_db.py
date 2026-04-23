@@ -1,25 +1,29 @@
 import sqlite3
 
-def update_db():
+def migrate():
     conn = sqlite3.connect('processos.db')
     cursor = conn.cursor()
     
-    # Try to add columns if they don't exist
-    columns_to_add = [
-        ("data_ultima_movimentacao", "DATE"),
-        ("vara", "TEXT"),
-        ("data_cadastro", "DATETIME DEFAULT CURRENT_TIMESTAMP")
+    # Lista de colunas a adicionar
+    novas_colunas = [
+        ("mov_tjrj", "TEXT"),
+        ("data_tjrj", "DATE"),
+        ("vara_tjrj", "TEXT"),
+        ("mov_cnj", "TEXT"),
+        ("data_cnj", "DATE"),
+        ("vara_cnj", "TEXT")
     ]
     
-    for col_name, col_type in columns_to_add:
+    for col_name, col_type in novas_colunas:
         try:
             cursor.execute(f"ALTER TABLE processos ADD COLUMN {col_name} {col_type}")
-            print(f"Added column {col_name}")
+            print(f"Coluna {col_name} adicionada.")
         except sqlite3.OperationalError:
-            print(f"Column {col_name} already exists or error occurred.")
+            print(f"Coluna {col_name} já existe.")
             
     conn.commit()
     conn.close()
+    print("Migração concluída.")
 
 if __name__ == "__main__":
-    update_db()
+    migrate()

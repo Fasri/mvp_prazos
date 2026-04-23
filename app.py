@@ -92,7 +92,7 @@ with st.sidebar:
             if not numero or not telefone:
                 st.error("Preencha o número do processo e WhatsApp.")
             else:
-                with st.spinner("Buscando dados no TJRJ..."):
+                with st.spinner("Buscando dados no CNJ..."):
                     if not ensure_api_online():
                         st.error("API off-line. Inicie com 'iniciar.bat' ou confirme dependências no venv.")
                     else:
@@ -130,70 +130,67 @@ except requests.RequestException:
     df = pd.DataFrame()
 
 if not df.empty:
-    # Tratamento de datas - lida com valores nulos convertendo para data mínima
-    df['data_ultima_movimentacao'] = pd.to_datetime(df['data_ultima_movimentacao'])
-    df['dias_parado'] = (datetime.now() - df['data_ultima_movimentacao']).dt.days
-    df['dias_parado'] = df['dias_parado'].fillna(0).astype(int)
+    # Tratamento de datas
+    df['data_tjrj'] = pd.to_datetime(df['data_tjrj'])
+    df['data_cnj'] = pd.to_datetime(df['data_cnj'])
+    
+    # Dias parado (usando CNJ como referência para o KPI geral, ou o mais recente)
+    df['dias_parado_tjrj'] = (datetime.now() - df['data_tjrj']).dt.days
+    df['dias_parado_cnj'] = (datetime.now() - df['data_cnj']).dt.days
     
     # --- KPIs ---
-    st.subheader("📊 Indicadores de Desempenho (KPIs)")
+    st.subheader("📊 Resumo do Monitoramento")
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     
     total_processos = len(df)
-    processos_parados = len(df[df['dias_parado'] > 15])
-    mov_recentes = len(df[df['dias_parado'] <= 7])
-    varas_unicas = df['vara'].nunique()
+    processos_parados_cnj = len(df[df['dias_parado_cnj'] > 15])
+    mov_recentes_tjrj = len(df[df['dias_parado_tjrj'] <= 7])
+    varas_unicas = df['vara_cnj'].nunique()
 
     kpi1.metric("Total de Processos", total_processos)
-    kpi2.metric("Parados > 15 dias", processos_parados, delta=f"{processos_parados} críticos", delta_color="inverse")
-    kpi3.metric("Atualizados (7 dias)", mov_recentes)
-    kpi4.metric("Varas Atendidas", varas_unicas)
+    kpi2.metric("Críticos (CNJ > 15d)", processos_parados_cnj)
+    kpi3.metric("Atualizados (TJRJ 7d)", mov_recentes_tjrj)
+    kpi4.metric("Varas (Datajud)", varas_unicas)
 
     st.divider()
 
-    col_graf, col_stuck = st.columns([1, 1])
+    # --- DUAS TABELAS: TJRJ vs CNJ ---
+    tab1, tab2 = st.tabs(["🏛️ Fonte: TJRJ (Site Oficial)", "🌐 Fonte: CNJ (API Datajud)"])
 
-    with col_graf:
-        st.subheader("🏢 Distribuição por Vara")
-        # Agrupa por vara para garantir que não haja conflitos de "non-leaves"
-        df_tree = df.copy()
-        df_tree['vara'] = df_tree['vara'].fillna('Não Identificada').replace('', 'Não Identificada')
-        df_counts = df_tree.groupby('vara').size().reset_index(name='quantidade')
-        
-        if not df_counts.empty:
-            try:
-                fig = px.treemap(df_counts, path=['vara'], values='quantidade',
-                                 title="Volume por Órgão Julgador",
-                                 color='quantidade',
-                                 color_continuous_scale='Blues')
-                fig.update_layout(margin=dict(t=30, l=10, r=10, b=10))
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.error(f"Erro ao gerar gráfico: {e}")
-        else:
-            st.info("Aguardando extração de dados das varas...")
+    with tab1:
+        st.subheader("Movimentações via Web Scraping TJRJ")
+        st.dataframe(df[[
+            'numero_processo', 'vara_tjrj', 'mov_tjrj', 'data_tjrj', 'dias_parado_tjrj'
+        ]].rename(columns={
+            'numero_processo': 'Processo',
+            'vara_tjrj': 'Vara/Órgão',
+            'mov_tjrj': 'Último Movimento',
+            'data_tjrj': 'Data',
+            'dias_parado_tjrj': 'Dias s/ Mov.'
+        }), use_container_width=True, hide_index=True)
+        st.info("💡 Dados obtidos diretamente do portal público do TJRJ.")
 
-    with col_stuck:
-        st.subheader("🚨 Processos Parados (> 15 dias)")
-        df_stuck = df[df['dias_parado'] > 15][['numero_processo', 'ultima_movimentacao', 'dias_parado']]
-        if not df_stuck.empty:
-            st.dataframe(df_stuck, use_container_width=True, hide_index=True)
-        else:
-            st.success("Nenhum processo parado há mais de 15 dias! ✅")
+    with tab2:
+        st.subheader("Movimentações via API Pública Datajud")
+        st.dataframe(df[[
+            'numero_processo', 'vara_cnj', 'mov_cnj', 'data_cnj', 'dias_parado_cnj'
+        ]].rename(columns={
+            'numero_processo': 'Processo',
+            'vara_cnj': 'Vara/Órgão',
+            'mov_cnj': 'Último Movimento',
+            'data_cnj': 'Data',
+            'dias_parado_cnj': 'Dias s/ Mov.'
+        }), use_container_width=True, hide_index=True)
+        st.info("💡 Dados consolidados pelo CNJ (pode haver atraso em relação ao site do tribunal).")
 
     st.divider()
-
-    # --- TABELA GERAL ---
-    st.subheader("📋 Todos os Processos Monitorados")
-    st.dataframe(df[[
-        'numero_processo', 'vara', 'ultima_movimentacao', 'data_ultima_movimentacao', 'dias_parado'
-    ]].rename(columns={
-        'numero_processo': 'Processo',
-        'vara': 'Vara/Órgão',
-        'ultima_movimentacao': 'Último Movimento',
-        'data_ultima_movimentacao': 'Data',
-        'dias_parado': 'Dias s/ Mov.'
-    }), use_container_width=True, hide_index=True)
+    
+    # Gráfico de comparação (opcional)
+    st.subheader("📈 Comparativo de Atualização")
+    fig_comp = px.bar(df, x='numero_processo', y=['dias_parado_tjrj', 'dias_parado_cnj'],
+                     barmode='group', title="Dias sem movimentação: TJRJ vs CNJ",
+                     labels={'value': 'Dias Parado', 'variable': 'Fonte', 'numero_processo': 'Processo'})
+    st.plotly_chart(fig_comp, use_container_width=True)
 
 else:
     st.info("Nenhum processo cadastrado. Use a barra lateral para começar.")

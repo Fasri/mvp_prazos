@@ -1,52 +1,51 @@
 #!/bin/bash
 
-# Script de Deploy - Monitor Jurídico TJRJ
-# Execute: chmod +x deploy.sh && ./deploy.sh
-
 echo "=== Deploy Monitor Jurídico TJRJ ==="
 
-# Atualizar sistema
-echo "[1/7] Atualizando sistema..."
+# Atualizar sistema (isso precisa de sudo)
+echo "[1/8] Atualizando sistema..."
 sudo apt update && sudo apt upgrade -y
 
-# Instalar dependências
-echo "[2/7] Instalando dependências..."
+# Instalar dependências do sistema
+echo "[2/8] Instalando dependências..."
 sudo apt install -y python3 python3-pip python3-venv git
 
-# Clonar projeto (substitua pela URL do seu repositório)
-echo "[3/7] Baixando projeto..."
-cd /opt
-sudo git clone https://github.com/seu_usuario/mvp_prazos.git
-cd mvp_prazos
+# Criar diretório do projeto
+echo "[3/8] Preparando projeto..."
+cd /home/ubuntu
+mkdir -p monitor-juridico
+cd monitor-juridico
 
-# Criar ambiente virtual
-echo "[4/7] Criando ambiente virtual..."
+# Criar ambiente virtual (SEM sudo!)
+echo "[4/8] Criando ambiente virtual..."
 python3 -m venv venv
+
+# Ativar ambiente virtual
 source venv/bin/activate
 
-# Instalar dependências Python
-echo "[5/7] Instalando dependências Python..."
+# Atualizar pip e instalar dependências (SEM sudo!)
+echo "[5/8] Instalando Python packages..."
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install fastapi uvicorn streamlit pandas plotly requests beautifulsoup4 apscheduler pydantic
 
 # Configurar firewall
-echo "[6/7] Configurando firewall..."
+echo "[6/8] Configurando firewall..."
 sudo ufw allow 22/tcp
-sudo ufw allow 8000/tcp
+sudo ufw allow 8000/tcp  
 sudo ufw allow 8501/tcp
 sudo ufw --force enable
 
 # Criar serviço systemd
-echo "[7/7] Criando serviço systemd..."
-sudo tee /etc/systemd/system/monitor-juridico.service > /dev/null <<EOF
+echo "[7/8] Criando serviço..."
+sudo tee /etc/systemd/system/monitor-juridico.service > /dev/null << 'EOF'
 [Unit]
 Description=Monitor Jurídico TJRJ - API
 After=network.target
 
 [Service]
-User=opc
-WorkingDirectory=/opt/mvp_prazos
-ExecStart=/opt/mvp_prazos/venv/bin/python -m uvicorn api:app --host 0.0.0.0 --port 8000
+User=ubuntu
+WorkingDirectory=/home/ubuntu/monitor-juridico
+ExecStart=/home/ubuntu/monitor-juridico/venv/bin/python -m uvicorn api:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=10
 
@@ -59,10 +58,14 @@ sudo systemctl daemon-reload
 sudo systemctl enable monitor-juridico
 sudo systemctl restart monitor-juridico
 
+# Obter IP do servidor
+IP=$(curl -s ifconfig.me)
+
 echo ""
 echo "=== Deploy concluído! ==="
-echo "API: http://$(curl -s ifconfig.me):8000"
-echo "Para rodar o Streamlit: source venv/bin/activate && streamlit run app.py"
+echo "API: http://$IP:8000"
 echo ""
-echo "Verificar status: sudo systemctl status monitor-juridico"
-echo "Ver logs: sudo journalctl -u monitor-juridico -f"
+echo "Comandos úteis:"
+echo "  Ver status:   sudo systemctl status monitor-juridico"
+echo "  Ver logs:     sudo journalctl -u monitor-juridico -f"
+echo "  Reiniciar:    sudo systemctl restart monitor-juridico"

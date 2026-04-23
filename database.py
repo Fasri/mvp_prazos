@@ -7,15 +7,24 @@ def get_db_connection():
 
 def init_db():
     conn = get_db_connection()
+    # Tabela unificada para cadastro, mas vamos separar os resultados
     conn.execute('''
         CREATE TABLE IF NOT EXISTS processos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             numero_processo TEXT NOT NULL,
             telefone_cliente TEXT NOT NULL,
             oab TEXT,
-            ultima_movimentacao TEXT,
-            data_ultima_movimentacao DATE,
-            vara TEXT,
+            
+            -- Dados TJRJ
+            mov_tjrj TEXT,
+            data_tjrj DATE,
+            vara_tjrj TEXT,
+            
+            -- Dados CNJ
+            mov_cnj TEXT,
+            data_cnj DATE,
+            vara_cnj TEXT,
+            
             data_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -36,20 +45,22 @@ def listar_processos():
     conn.close()
     return [dict(p) for p in processos]
 
-def atualizar_processo_full(processo_id, movimentacao, data_mov, vara):
+def atualizar_tjrj(processo_id, mov, data, vara):
     conn = get_db_connection()
     conn.execute('''
         UPDATE processos 
-        SET ultima_movimentacao = ?, 
-            data_ultima_movimentacao = ?, 
-            vara = ? 
+        SET mov_tjrj = ?, data_tjrj = ?, vara_tjrj = ?
         WHERE id = ?
-    ''', (movimentacao, data_mov, vara, processo_id))
+    ''', (mov, data, vara, processo_id))
     conn.commit()
     conn.close()
 
-def atualizar_movimentacao(processo_id, nova_movimentacao):
+def atualizar_cnj(processo_id, mov, data, vara):
     conn = get_db_connection()
-    conn.execute('UPDATE processos SET ultima_movimentacao = ? WHERE id = ?', (nova_movimentacao, processo_id))
+    conn.execute('''
+        UPDATE processos 
+        SET mov_cnj = ?, data_cnj = ?, vara_cnj = ?
+        WHERE id = ?
+    ''', (mov, data, vara, processo_id))
     conn.commit()
     conn.close()

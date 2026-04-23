@@ -61,8 +61,11 @@ def consultar_processo(numero):
             # Se não achou exacto, pega o primeiro que contenha o número
             processo_encontrado = hits[0]["_source"]
         
-        # Extrai dados
-        vara = processo_encontrado.get("orgaoJulgador", {}).get("nome", "Não identificado")
+        # Extrai dados da Vara (Órgão Julgador)
+        vara = "Não identificado"
+        orgao = processo_encontrado.get("orgaoJulgador", {})
+        if orgao:
+            vara = orgao.get("nome", "Não identificado")
         
         data_ultima = None
         movimentacao = "Sem movimentações"
